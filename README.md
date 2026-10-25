@@ -27,7 +27,7 @@ personal training), built for the Database Systems course at FIIT STU.
 ```
 schema.sql                     tables, constraints, relationships
 indexes.sql                    performance indexes
-operations/                    stored operations (CTE-based SQL)
+operations/                    CTE-based query operations
 seed.py                        deterministic fake-data generator
 dm_Rezervacny_system.puml      PlantUML data model
 docs/er.png                    rendered ER diagram
