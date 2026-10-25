@@ -1,0 +1,231 @@
+@startuml dm_Rezervacny_system
+' ========================
+' RESERVATION SYSTEM — Physical Data Model
+' Decisions:
+'   - salary: integer (cents pattern, consistent with price/amount)
+'   - schedule_override: timestamp with time zone (overrides are date+time specific)
+'   - profile_image_url: included (in diagram, missing from PDF)
+'   - end_time on reservation: included (in diagram, missing from PDF — logically required)
+'   - schedule_heavy on service: EXCLUDED (no definition in PDF, unclear meaning)
+'   - payment.created_at: timestamp with time zone (PDF typo "serial" corrected)
+'   - role_permission PK: integer (PDF value; diagram shows varchar(50) — typo)
+'   - employee_service table name: typo "serivce" corrected to "service"
+' STATUS enum: 0=pending, 1=confirmed, 2=finished, 3=canceled
+' ========================
+
+hide methods
+hide stereotypes
+
+skinparam linetype ortho
+
+' ========================
+' USER & RBAC
+' ========================
+
+entity "user" as user {
+  * id : uuid <<PK>>
+  --
+  * email : varchar(50) <<UNIQUE>>
+  * name : varchar(50)
+  * password_hash : varchar(256)
+  * password_salt : varchar(20)
+  phone : varchar(10)
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+entity "role" as role {
+  * id : smallint <<PK>>
+  --
+  * name : varchar(50) <<UNIQUE>>
+}
+
+entity "user_role" as user_role {
+  * id : integer <<PK>>
+  --
+  * user_id : uuid <<FK>>
+  * role_id : smallint <<FK>>
+}
+
+entity "permission" as permission {
+  * id : integer <<PK>>
+  --
+  * resource : varchar(50)
+  * can_view : boolean
+  * can_modify : boolean
+  * can_add : boolean
+  * can_delete : boolean
+}
+
+entity "role_permission" as role_permission {
+  * id : integer <<PK>>
+  --
+  * role_id : smallint <<FK>>
+  * permission_id : integer <<FK>>
+}
+
+' ========================
+' BRANCH
+' ========================
+
+entity "branch" as branch {
+  * id : uuid <<PK>>
+  --
+  owner_id : uuid <<FK, SET NULL on delete>>
+  * name : varchar(256)
+  * address : varchar(256)
+  * contact_info : varchar(256)
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+  * is_active : boolean
+}
+
+entity "branch_schedule" as branch_schedule {
+  * id : integer <<PK>>
+  --
+  * branch_id : uuid <<FK, CASCADE>>
+  * day_of_week : smallint
+  * opening_time : time with time zone
+  * closing_time : time with time zone
+  * interval_minutes : integer
+  * is_active : boolean
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+entity "schedule_override" as schedule_override {
+  * id : integer <<PK>>
+  --
+  * branch_id : uuid <<FK, CASCADE>>
+  employee_id : integer <<FK, SET NULL>>
+  * start_time : timestamp with time zone
+  * end_time : timestamp with time zone
+  * is_open : boolean
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+' ========================
+' EMPLOYEE & SERVICE
+' ========================
+
+entity "branch_employee" as branch_employee {
+  * id : integer <<PK>>
+  --
+  * branch_id : uuid <<FK, CASCADE>>
+  * user_id : uuid <<FK, CASCADE>>
+  * salary : integer
+  * hired_at : date
+  terminated_at : date
+  profile_image_url : varchar(256)
+  * is_active : boolean
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+entity "service" as service {
+  * id : integer <<PK>>
+  --
+  * branch_id : uuid <<FK, CASCADE>>
+  * name : varchar(256)
+  * price : integer
+  * duration_minutes : integer
+  description : text
+  * capacity : integer
+  * is_active : boolean
+  * is_public : boolean
+  * is_participants_identified : boolean
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+entity "employee_service" as employee_service {
+  * id : integer <<PK>>
+  --
+  service_id : integer <<FK>>
+  employee_id : integer <<FK>>
+}
+
+' ========================
+' RESERVATION
+' ========================
+
+entity "reservation" as reservation {
+  * id : uuid <<PK>>
+  --
+  service_id : integer <<FK, SET NULL>>
+  * user_id : uuid <<FK, CASCADE>>
+  employee_id : integer <<FK, SET NULL>>
+  * status : smallint
+  * start_time : timestamp with time zone
+  end_time : timestamp with time zone
+  * amount : integer
+  note : text
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+entity "participant" as participant {
+  * id : integer <<PK>>
+  --
+  * reservation_id : uuid <<FK, CASCADE>>
+  first_name : varchar(50)
+  last_name : varchar(50)
+  date_of_birth : date
+  address_line1 : varchar(50)
+  address_line2 : varchar(50)
+  city : varchar(50)
+  state_region : varchar(50)
+  postal_code : varchar(50)
+  country : varchar(50)
+  note : text
+}
+
+' ========================
+' PAYMENT
+' ========================
+
+entity "payment" as payment {
+  * id : uuid <<PK>>
+  --
+  * reservation_id : uuid <<FK, CASCADE>>
+  * online : boolean
+  * status : smallint
+  transaction_id : varchar(256) <<UNIQUE>>
+  * amount : integer
+  * currency : varchar(8)
+  * created_at : timestamp with time zone
+  * updated_at : timestamp with time zone
+}
+
+' ========================
+' RELATIONSHIPS
+' ========================
+
+user            ||--o{ user_role         : "user_id = id"
+role            ||--o{ user_role         : "role_id = id"
+
+role            ||--o{ role_permission   : "role_id = id"
+permission      ||--o{ role_permission   : "permission_id = id"
+
+user            ||--o{ branch            : "owner_id = id"
+user            ||--o{ branch_employee   : "user_id = id"
+
+branch          ||--o{ branch_schedule   : "branch_id = id"
+branch          ||--o{ schedule_override : "branch_id = id"
+branch          ||--o{ branch_employee   : "branch_id = id"
+branch          ||--o{ service           : "branch_id = id"
+
+branch_employee ||--o{ schedule_override : "employee_id = id"
+branch_employee ||--o{ employee_service  : "employee_id = id"
+branch_employee ||--o{ reservation       : "employee_id = id"
+
+service         ||--o{ employee_service  : "service_id = id"
+service         ||--o{ reservation       : "service_id = id"
+
+user            ||--o{ reservation       : "user_id = id"
+
+reservation     ||--o{ participant       : "reservation_id = id"
+reservation     ||--o{ payment           : "reservation_id = id"
+
+@enduml
