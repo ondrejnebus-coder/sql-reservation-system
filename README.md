@@ -43,13 +43,11 @@ psql -d reservations -f indexes.sql
 
 pip install -r requirements.txt
 python seed.py --dsn "postgresql://postgres:postgres@localhost/reservations"
-
-# example operation
-psql -d reservations -f operations/create_reservation.sql
 ```
 
-The operation files use positional parameters (`$1`, `$2`, ...); call them from
-your application or wrap them in a prepared statement.
+The two files in `operations/` are parameterised query bodies, not standalone
+scripts. Bind their positional parameters (`$1`, `$2`, ...) from your application,
+or wrap them with `PREPARE` / `EXECUTE` in `psql`.
 
 ## What I learned
 
